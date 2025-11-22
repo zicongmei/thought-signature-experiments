@@ -50,6 +50,9 @@ FUNC_ARG=$(curl "$ENDPOINT" \
 echo "--- First API Response (Model's suggested function calls) ---"
 echo "$FUNC_ARG" | jq .
 
+# Extract thoughtSignature if present in the first API response
+THOUGHT_SIGNATURE=$(echo "$FUNC_ARG" | jq -r '.thoughtSignature // empty')
+
 # Extract the function calls requested by the model
 # Assuming the model's response has candidates[0].content.parts containing functionCall objects
 MODEL_FUNCTION_CALLS=$(echo "$FUNC_ARG" | jq -c '.candidates[0].content.parts[] | select(.functionCall != null)')
@@ -116,13 +119,19 @@ CONTENTS_PAYLOAD=$(cat <<EOF
 EOF
 )
 
+# Construct the payload for the second API call, including thoughtSignature if available
+JSON_PAYLOAD_SECOND_CALL="{}"
+if [ -n "$THOUGHT_SIGNATURE" ]; then
+  JSON_PAYLOAD_SECOND_CALL="{\"thoughtSignature\": \"$THOUGHT_SIGNATURE\", \"contents\": $CONTENTS_PAYLOAD}"
+else
+  JSON_PAYLOAD_SECOND_CALL="{\"contents\": $CONTENTS_PAYLOAD}"
+fi
+
 # Second API call: Send the function results back to the model
 SECOND_CALL_RESULT=$(curl "$ENDPOINT" \
   -H 'Content-Type: application/json' \
   -X POST \
-  -d "{
-  \"contents\": $CONTENTS_PAYLOAD
-}")
+  -d "$JSON_PAYLOAD_SECOND_CALL")
 
 echo "--- Second API Response (Model's final answer after receiving func results) ---"
 echo "$SECOND_CALL_RESULT" | jq .
