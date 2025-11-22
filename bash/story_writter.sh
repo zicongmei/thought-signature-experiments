@@ -14,7 +14,7 @@ FIRST_CALL=$(curl "$ENDPOINT" \
       "role": "user",
       "parts": [
         {
-          "text": "write the 1st paragraph of a hero story about 100 words"
+          "text": "write the 1st paragraph of a hero story about 500 words"
         }
       ]
     }
@@ -36,3 +36,49 @@ echo "$RESPONSE_TEXT"
 
 echo "--- Thought Signature ---"
 echo "$THOUGHT_SIGNATURE"
+
+# Prepare JSON-safe strings (preserving quotes) for the next payload
+RESPONSE_TEXT_JSON=$(echo "$FIRST_CALL" | jq '.candidates[0].content.parts[0].text')
+THOUGHT_SIGNATURE=$(echo "$FIRST_CALL" | jq '.candidates[0].content.parts[0].thoughtSignature')
+
+# Second API call: Create the second paragraph using the thought signature from the first response
+SECOND_CALL=$(curl "$ENDPOINT" \
+  -H 'Content-Type: application/json' \
+  -X POST \
+  --data @- <<EOF
+{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "write the 1st paragraph of a hero story about 100 words"
+        }
+      ]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {
+          "text": $RESPONSE_TEXT_JSON,
+          "thoughtSignature": $THOUGHT_SIGNATURE
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "write the 2nd paragraph"
+        }
+      ]
+    }
+  ]
+}
+EOF
+)
+
+echo "$SECOND_CALL"
+
+# Save the response text into a variable
+RESPONSE_TEXT_2=$(echo "$SECOND_CALL" | jq -r '.candidates[0].content.parts[0].text')
